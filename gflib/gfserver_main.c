@@ -1,26 +1,29 @@
 #include <errno.h>
 #include <getopt.h>
-#include <stdlib.h>
 #include <netdb.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <regex.h>
-#include <string.h>
-#include <sys/types.h>
 #include <netinet/in.h>
+#include <regex.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 
 #include "content.h"
-#include "gfserver.h"
 #include "gfserver-student.h"
+#include "gfserver.h"
 
-#define USAGE                                                                                  \
-  "usage:\n"                                                                                   \
-  "  gfserver_main [options]\n"                                                                \
-  "options:\n"                                                                                 \
-  "  -m [content_file]  Content file mapping keys to content filea (Default: 'content.txt')\n" \
-  "  -p [listen_port]   Listen port (Default: 39485)\n"                                        \
-  "  -h          		Show this help message.\n"              		                       \
+
+#define USAGE                                                                  \
+  "usage:\n"                                                                   \
+  "  gfserver_main [options]\n"                                                \
+  "options:\n"                                                                 \
+  "  -m [content_file]  Content file mapping keys to content filea (Default: " \
+  "'content.txt')\n"                                                           \
+  "  -p [listen_port]   Listen port (Default: 39485)\n"                        \
+  "  -h          		Show this help message.\n"
 
 /* OPTIONS DESCRIPTOR ====================================================== */
 static struct option gLongOptions[] = {
@@ -36,25 +39,25 @@ int main(int argc, char **argv) {
   unsigned short port = 39485;
   gfserver_t *gfs = NULL;
 
-
-  setbuf(stdout, NULL);  // disable caching of standpard output
+  setbuf(stdout, NULL); // disable caching of standpard output
 
   // Parse and set command line arguments
-  while ((option_char = getopt_long(argc, argv, "hal:p:m:", gLongOptions, NULL)) != -1) {
+  while ((option_char =
+              getopt_long(argc, argv, "hal:p:m:", gLongOptions, NULL)) != -1) {
     switch (option_char) {
-      case 'm':  /* file-path */
-        content_map_file = optarg;
-        break;
-      case 'p':  /* listen-port */
-        port = atoi(optarg);
-        break;
-      case 'h':  /* help */
-        fprintf(stdout, "%s", USAGE);
-        exit(0);
-        break;
-      default:
-        fprintf(stderr, "%s", USAGE);
-        exit(1);
+    case 'm': /* file-path */
+      content_map_file = optarg;
+      break;
+    case 'p': /* listen-port */
+      port = atoi(optarg);
+      break;
+    case 'h': /* help */
+      fprintf(stdout, "%s", USAGE);
+      exit(0);
+      break;
+    default:
+      fprintf(stderr, "%s", USAGE);
+      exit(1);
     }
   }
 

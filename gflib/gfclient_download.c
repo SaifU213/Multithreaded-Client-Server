@@ -1,22 +1,23 @@
 #include <regex.h>
 #include <stdlib.h>
 
+#include "gfclient-student.h"
 #include "gfclient.h"
 #include "workload.h"
-#include "gfclient-student.h"
+
 
 #define BUFSIZE 1024
 #define PATH_BUFFER_SIZE 256
 
-#define USAGE                                                             \
-  "usage:\n"                                                              \
-  "  gfclient_download [options]\n"                                       \
-  "options:\n"                                                            \
-  "  -w [workload_path]  Path to workload file (Default: workload.txt)\n" \
-  "  -p [server_port]    Server port (Default: 39485)\n"                  \
-  "  -s [server_addr]    Server address (Default: 127.0.0.1)\n"           \
-  "  -n [num_requests]   Request download total (Default: 14)\n"          \
-  "  -h                  Show this help message\n"                        \
+#define USAGE                                                                  \
+  "usage:\n"                                                                   \
+  "  gfclient_download [options]\n"                                            \
+  "options:\n"                                                                 \
+  "  -w [workload_path]  Path to workload file (Default: workload.txt)\n"      \
+  "  -p [server_port]    Server port (Default: 39485)\n"                       \
+  "  -s [server_addr]    Server address (Default: 127.0.0.1)\n"                \
+  "  -n [num_requests]   Request download total (Default: 14)\n"               \
+  "  -h                  Show this help message\n"
 
 /* OPTIONS DESCRIPTOR ====================================================== */
 static struct option gLongOptions[] = {
@@ -87,32 +88,32 @@ int main(int argc, char **argv) {
   char *server = "localhost";
   unsigned short port = 39485;
 
-  setbuf(stdout, NULL);  // disable buffering
+  setbuf(stdout, NULL); // disable buffering
 
   // Parse and set command line arguments
   while ((option_char = getopt_long(argc, argv, "l:r:hp:s:n:", gLongOptions,
                                     NULL)) != -1) {
     switch (option_char) {
-      case 'r':
-      case 'n':  // nrequests
-        nrequests = atoi(optarg);
-        break;	
-	  case 's':  // server
-        server = optarg;
-        break;
-        Usage();
-      case 'h':  // help
-        Usage();
-        exit(0);
-        break;
-      case 'p':  // port
-        port = atoi(optarg);
-        break;
-      case 'w':  // workload-path
-        workload_path = optarg;
-        break;
-      default:
-        exit(1);
+    case 'r':
+    case 'n': // nrequests
+      nrequests = atoi(optarg);
+      break;
+    case 's': // server
+      server = optarg;
+      break;
+      Usage();
+    case 'h': // help
+      Usage();
+      exit(0);
+      break;
+    case 'p': // port
+      port = atoi(optarg);
+      break;
+    case 'w': // workload-path
+      workload_path = optarg;
+      break;
+    default:
+      exit(1);
     }
   }
 
@@ -147,7 +148,6 @@ int main(int argc, char **argv) {
     gfc_set_path(&gfr, req_path);
     gfc_set_server(&gfr, server);
 
-
     gfc_set_writefunc(&gfr, writecb);
     gfc_set_writearg(&gfr, file);
 
@@ -167,17 +167,16 @@ int main(int argc, char **argv) {
         fprintf(stderr, "warning: unlink failed on %s\n", local_path);
     }
 
-
-    fprintf(stdout, "Received:: %zu of %zu bytes\n", gfc_get_bytesreceived(&gfr),
-            gfc_get_filelen(&gfr));
-        fprintf(stdout, "Status: %s\n", gfc_strstatus(gfc_get_status(&gfr)));
+    fprintf(stdout, "Received:: %zu of %zu bytes\n",
+            gfc_get_bytesreceived(&gfr), gfc_get_filelen(&gfr));
+    fprintf(stdout, "Status: %s\n", gfc_strstatus(gfc_get_status(&gfr)));
 
     gfc_cleanup(&gfr);
   }
 
   gfc_global_cleanup();
 
-  workload_destroy();  // clean up workload package
+  workload_destroy(); // clean up workload package
 
   return 0;
 }

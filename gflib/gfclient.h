@@ -8,7 +8,6 @@
  * protocol.  The interface is inspired by libcurl's "easy" interface.
  */
 
-
 typedef enum{
   GF_OK = 0,
   GF_FILE_NOT_FOUND = (GF_OK + 1),
