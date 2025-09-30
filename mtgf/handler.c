@@ -19,11 +19,6 @@ extern steque_t queue;
 extern pthread_mutex_t mutex;
 extern pthread_cond_t queue_not_empty;
 
-struct handler_item {
-  gfcontext_t *ctx;
-  const char *path;
-};
-
 gfh_error_t gfs_handler(gfcontext_t **ctx, const char *path, void *arg) {
 
   /* Note that when you have a worker thread pool, you will need to move this
@@ -34,13 +29,18 @@ gfh_error_t gfs_handler(gfcontext_t **ctx, const char *path, void *arg) {
     // handle allocation failure
     return gfh_failure;
   }
-  item->ctx = *ctx;
+  item->ctx = (*ctx);
   item->path = strdup(path);
 
   pthread_mutex_lock(&mutex);
   steque_enqueue(&queue, (void *)item);
   // Wake up thread
   pthread_cond_signal(&queue_not_empty);
+
+  // Ownership problem
+  // ADDED LATER
+  (*ctx) = NULL;
+
   // Release Mutex
   pthread_mutex_unlock(&mutex);
 

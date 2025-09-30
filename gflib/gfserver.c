@@ -1,9 +1,6 @@
-#include "gfserver.h"
 #include "gfserver-student.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 
 #define BUFSIZE 1024
 
@@ -53,7 +50,7 @@ ssize_t gfs_send(gfcontext_t **ctx, const void *data, size_t len) {
     bytesleft -= actual_sent;
   }
 
-  printf("send");
+  // printf("send");
   // retuns total_sent ssize_t
   return total_sent;
 } // DONE MAYBE
@@ -67,24 +64,24 @@ ssize_t gfs_sendheader(gfcontext_t **ctx, gfstatus_t status, size_t file_len) {
   case (GF_FILE_NOT_FOUND):
     bytes_sent = (send((*ctx)->client_sockfd, "GETFILE FILE_NOT_FOUND\r\n\r\n",
                        strlen("GETFILE FILE_NOT_FOUND\r\n\r\n"), 0));
-    if (bytes_sent <= 0) {
-      perror("recv");
+    if (bytes_sent < 0) {
+      perror("send");
       break;
     }
     break;
   case (GF_ERROR):
     bytes_sent = (send((*ctx)->client_sockfd, "GETFILE ERROR\r\n\r\n",
                        strlen("GETFILE ERROR\r\n\r\n"), 0));
-    if (bytes_sent <= 0) {
-      perror("recv");
+    if (bytes_sent < 0) {
+      perror("send");
       break;
     }
     break;
   case (GF_INVALID):
     bytes_sent = (send((*ctx)->client_sockfd, "GETFILE INVALID\r\n\r\n",
                        strlen("GETFILE INVALID\r\n\r\n"), 0));
-    if (bytes_sent <= 0) {
-      perror("recv");
+    if (bytes_sent < 0) {
+      perror("send");
       break;
     }
     break;
@@ -92,13 +89,13 @@ ssize_t gfs_sendheader(gfcontext_t **ctx, gfstatus_t status, size_t file_len) {
     (*ctx)->file_len = file_len;
     sprintf(buffer, "GETFILE OK %zu\r\n\r\n", file_len);
     bytes_sent = (send((*ctx)->client_sockfd, buffer, strlen(buffer), 0));
-    if (bytes_sent <= 0) {
-      perror("recv");
+    if (bytes_sent < 0) {
+      perror("send");
       break;
     }
     break;
   }
-  printf("sendheader");
+  // printf("sendheader");
   return bytes_sent;
 }
 
@@ -168,52 +165,50 @@ void gfserver_serve(gfserver_t **gfs) {
     perror("listen");
     exit(1);
   };
-  char header[BUFSIZE] = "\0";
+
+  char header[BUFSIZE];
   // accept
   // connect
   while (1) {
     gfcontext_t *client_context = malloc(sizeof(gfcontext_t));
-    memset(header, '\0', BUFSIZE);
 
     // Second socket - client_sockfd to facilitate send and recv
     addr_size = sizeof client_addr;
     if ((client_sockfd = accept(server_sockfd, (struct sockaddr *)&client_addr,
                                 &addr_size)) < 0) {
       perror("accept");
-      exit(1);
+      break;
     }
-    printf("Client connected");
-
-    int bytes_recv;
+    (*client_context).client_sockfd = client_sockfd;
 
     while (1) {
-      if ((bytes_recv = recv(client_sockfd, header, BUFSIZE, 0)) <= 0) {
+      int bytes_recv;
+      (bytes_recv = recv(client_sockfd, header, BUFSIZE, 0));
+      if (bytes_recv < 0) {
         perror("recv");
+        // free(client_context);
         break;
       }
-      header[bytes_recv] = '\0';
-      printf("Recieved reqest");
 
-      // Scheme
-      // strtok() like js splice(), extracts the
+      // Header
+      // https://stackoverflow.com/questions/15080951/tokenizing-a-string-in-c-using-strtok
       char *scheme = strtok(header, " ");
       char *method = strtok(NULL, " ");
       char *path = strtok(NULL, "\r\n\r\n");
 
       if (strcmp(scheme, "GETFILE") != 0 || strcmp(method, "GET") != 0) {
-        char *response = "GETFILE INVALID\r\n\r\n";
-        send(client_sockfd, response, strlen(response), 0);
+        send(client_sockfd, "GETFILE INVALID \r\n\r\n",
+             strlen("GETFILE INVALID \r\n\r\n"), 0);
         close(client_sockfd);
+        // free(client_context);
         break;
       }
       // Sends the data to the handler function
-      (*client_context).client_sockfd = client_sockfd;
       (*gfs)->handler(&client_context, path, (*gfs)->arg);
-
       // close
       close(client_sockfd);
       free(client_context);
-
+      break;
       // printf("Processed Request");
     }
   }
@@ -226,7 +221,7 @@ void gfserver_set_handler(gfserver_t **gfs,
                           gfh_error_t (*handler)(gfcontext_t **, const char *,
                                                  void *)) {
   (*gfs)->handler = handler;
-} // LEAVE ALONE
+} // DONE
 
 /* Sets the maximum number of connections at once */
 void gfserver_set_maxpending(gfserver_t **gfs, int max_npending) {

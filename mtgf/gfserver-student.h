@@ -12,4 +12,10 @@
 void init_threads(size_t numthreads);
 void cleanup_threads();
 
+struct handler_item {
+  gfcontext_t *ctx;
+  char *path;
+};
+
+
 #endif // __GF_SERVER_STUDENT_H__

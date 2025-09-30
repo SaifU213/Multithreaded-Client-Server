@@ -10,4 +10,7 @@ echo/*-result-*.json
 gflib/*-result-*.json
 mtgf/*-result-*.json
 
+report.md
+readme-student-template.md
+
 *.log

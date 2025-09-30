@@ -1,12 +1,11 @@
 #include "gfserver-student.h"
 #include "gfserver.h"
-#include "handler.c"
 #include "steque.h"
-#include <cstdio>
 #include <pthread.h>
 #include <stdlib.h>
+#include <unistd.h>
 
-#define BUFFER 512
+#define BUFSIZE 512
 
 #define USAGE                                                                  \
   "usage:\n"                                                                   \
@@ -56,33 +55,59 @@ void *threadfunc(void *threadargument) {
     // Dequeue and assign to thread
     struct handler_item *item = (struct handler_item *)steque_pop(&queue);
 
-    gfcontext_t *ctx = item->ctx;
-
     pthread_mutex_unlock(&mutex);
 
-    int fildes = content_get(item->path);
+    gfcontext_t *ctx = item->ctx;
+    char *path = item->path;
+
+    int fildes = content_get(path);
     if (fildes < 0) {
-      gfs_sendheader(&item->ctx, GF_ERROR, 0);
-      perror("No file descriptor");
-      gfs_abort(&ctx);
-      break;
+      gfs_sendheader(&ctx, GF_FILE_NOT_FOUND, 0);
+      fprintf(stderr, "File not found %s\n", gai_strerror(fildes));
+      // gfs_abort(&ctx);
+      free(item->path);
+      free(item);
+      continue;
     }
 
-    int len = sizeof(fildes);
+    // Get file size
+    struct stat finfo;
+    int fstat_ok;
+    fstat_ok = fstat(fildes, &finfo);
+    if (fstat_ok < 0) {
+      gfs_sendheader(&ctx, GF_ERROR, 0);
+      fprintf(stderr, "File empty: %s\n", gai_strerror(fstat_ok));
+      // gfs_abort(&ctx);
+      close(fildes);
+      free(item->path);
+      free(item);
+      continue;
+    }
 
-    gfs_sendheader(&item->ctx, GF_OK, len);
+    int len = finfo.st_size;
 
-    int complete;
-    char buffer[BUFFER];
+    gfs_sendheader(&ctx, GF_OK, len);
 
-    do {
-      complete = gfs_send(&ctx, buffer, len);
-    } while (complete != 0);
+    ssize_t bytes_read = 0;
+    ssize_t actual_sent = 0;
+    ssize_t total_sent = 0;
+    char buffer[BUFSIZE];
 
+    while (total_sent < len) {
+      memset(buffer, 0, sizeof(buffer));
+      bytes_read = pread(fildes, buffer, BUFSIZE, total_sent);
+      if (bytes_read <= 0) {
+        break;
+      }
+      actual_sent = gfs_send(&ctx, buffer, bytes_read);
+      total_sent += actual_sent;
+    }
     // not yet implemented.
-    memset(buffer, 0, sizeof(buffer));
+    // close(fildes);
+    free(item->path);
     free(item);
   }
+  return NULL;
 }
 
 /* Main ========================================================= */
@@ -151,11 +176,6 @@ int main(int argc, char **argv) {
 
   for (int i = 0; i < nthreads; i++) {
     pthread_create(&threads[i], NULL, threadfunc, NULL);
-  }
-
-  // Wait on threads to finish using join
-  for (int i = 0; i < nthreads; i++) {
-    pthread_join(threads[i], NULL);
   }
 
   /*Initializing server*/

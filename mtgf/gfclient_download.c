@@ -1,12 +1,12 @@
 #include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "gfclient-student.h"
-#include "steque.c"
 #include "steque.h"
 
 #define MAX_THREADS 1024
-#define PATH_BUFFER_SIZE 512
+#define PATH_BUFFER_SIZE 4096
 
 #define USAGE                                                                  \
   "usage:\n"                                                                   \
@@ -83,39 +83,43 @@ char *req_path = NULL;
 char local_path[PATH_BUFFER_SIZE];
 int nrequests = 14;
 
-gfcrequest_t *gfr = NULL;
-FILE *file = NULL;
+int requests_enqueued = 0;
 
 /* Thread global variables */
 // Request queue
-steque_t *queue;
+steque_t queue;
 // mutex
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 // condition variables
 pthread_cond_t queue_not_empty = PTHREAD_COND_INITIALIZER;
 
 void *threadfunc(void *threadargument) {
+  gfcrequest_t *gfr = NULL;
+  FILE *file = NULL;
   // Check if empty
   while (1) {
     // Grab mutex
     pthread_mutex_lock(&mutex);
 
     // If empty release mutex
-    while (steque_isempty(queue)) {
+    while (steque_isempty(&queue) && !requests_enqueued) {
       pthread_cond_wait(&queue_not_empty, &mutex);
     }
+
+    // exit thread after completion
+    if (steque_isempty(&queue) && requests_enqueued) {
+      pthread_mutex_unlock(&mutex);
+      return (NULL);
+    }
     // Dequeue and assign to thread
-    char *req_path = (char *)steque_pop(queue);
+    char *req_path = (char *)steque_pop(&queue);
 
     // Release Mutex
     pthread_mutex_unlock(&mutex);
 
-    char *workload_path = "workload.txt";
     int returncode = 0;
     // char *req_path = NULL;
     char local_path[PATH_BUFFER_SIZE];
-
-    req_path = workload_get_path();
 
     if (strlen(req_path) > PATH_BUFFER_SIZE) {
       fprintf(stderr, "Request path exceeded maximum of %d characters\n.",
@@ -158,34 +162,18 @@ void *threadfunc(void *threadargument) {
 
     gfc_cleanup(&gfr);
     free(req_path);
-
     /*
      * note that when you move the above logic into your worker thread, you will
      * need to coordinate with the boss thread here to effect a clean shutdown.
      */
   }
-  return NULL;
-}
-
-void *thread_handler() {
-  // Check if empty
-  while (1) {
-    if (steque_isempty(queue) != 1) {
-      steque_front(queue);
-    }
-    pthread_cond_wait(&queue_not_empty, &mutex);
-    // Dequeue and assign to thread
-    pthread_mutex_lock(&mutex);
-
-    steque_pop(queue);
-    pthread_mutex_unlock(&mutex);
-  }
+  return (NULL);
 }
 
 /* Main ========================================================= */
 int main(int argc, char **argv) {
   /* COMMAND LINE OPTIONS ============================================= */
-  char *workload_path = "workload.txt";
+  /* char *workload_path = "workload.txt";
   char *server = "localhost";
   unsigned short port = 29458;
   int option_char = 0;
@@ -197,7 +185,7 @@ int main(int argc, char **argv) {
   int nrequests = 14;
 
   gfcrequest_t *gfr = NULL;
-  FILE *file = NULL;
+  FILE *file = NULL; */
 
   setbuf(stdout, NULL); // disable caching
 
@@ -253,18 +241,13 @@ int main(int argc, char **argv) {
   // variables
 
   // Initialize queue before thread and thredfunc
-  steque_init(queue);
+  steque_init(&queue);
 
   // Create threads
   pthread_t threads[nthreads];
 
   for (int i = 0; i < nthreads; i++) {
     pthread_create(&threads[i], NULL, threadfunc, NULL);
-  }
-
-  // Wait on threads to finish using join
-  for (int i = 0; i < nthreads; i++) {
-    pthread_join(threads[i], NULL);
   }
 
   // We want a thread per file
@@ -279,11 +262,21 @@ int main(int argc, char **argv) {
     req_path = workload_get_path();
     // Duplicates into a new memory block
     char *req_path_copy = strdup(req_path);
-    steque_enqueue(queue, req_path_copy);
+    steque_enqueue(&queue, req_path_copy);
     // Wake up thread
     pthread_cond_signal(&queue_not_empty);
     // Release Mutex
     pthread_mutex_unlock(&mutex);
+  }
+
+  pthread_mutex_lock(&mutex);
+  requests_enqueued = 1;
+  pthread_cond_broadcast(&queue_not_empty);
+  pthread_mutex_unlock(&mutex);
+
+  // Wait on threads to finish using join
+  for (int i = 0; i < nthreads; i++) {
+    pthread_join(threads[i], NULL);
   }
 
   gfc_global_cleanup(); /* use for any global cleanup for AFTER your thread
